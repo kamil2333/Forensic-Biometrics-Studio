@@ -28,6 +28,7 @@ import {
     md5Bytes,
     md5String,
 } from "./report-utils";
+import reportStyles from "./report-pdf.css?raw";
 
 type ReportGenerationOptions = {
     includeMatchedOnly: boolean;
@@ -156,7 +157,7 @@ export const renderImageWithMarkings = async (
     markings: MarkingClass[],
     markingTypes: MarkingType[],
     sizeScale: number,
-    tracingPaths?: TracingPath[], 
+    tracingPaths?: TracingPath[],
     options?: {
         showMarkingLabels?: boolean;
         markingsAlpha?: number;
@@ -191,7 +192,7 @@ export const renderImageWithMarkings = async (
                 join: PIXI.LINE_JOIN.ROUND,
                 cap: PIXI.LINE_CAP.ROUND,
             });
-            
+
             if (path.points && path.points.length > 0) {
                 const p0 = path.points[0];
                 if (p0) {
@@ -201,10 +202,10 @@ export const renderImageWithMarkings = async (
                     });
                 }
             }
-            
+
             tracingContainer.addChild(g);
         });
-        
+
         app.stage.addChild(tracingContainer);
     }
 
@@ -1110,65 +1111,11 @@ export const createReportRoot = () => {
 export const createStyles = () => {
     const style = document.createElement("style");
     style.textContent = `
-        .report-root { position: fixed; left: -10000px; top: 0; width: ${PAGE.width}px; font-family: "Arial", sans-serif; color: #000; }
-        .report-page { width: ${PAGE.width}px; height: ${PAGE.height}px; background: #fff; padding: 60px 80px; box-sizing: border-box; position: relative; display: block; }
-        .report-page.landscape { width: ${LANDSCAPE.width}px; height: ${LANDSCAPE.height}px; padding: 60px 80px; }
-
-        .report-title { font-size: 26px; font-weight: bold; text-align: center; line-height: 1.3; margin: 0 auto 40px auto; max-width: 500px; }
-        .kv-row { display: flex; margin-bottom: 4px; font-size: 14px; }
-        .kv-label { font-weight: bold; width: 260px; }
-        .kv-value { flex: 1; }
-        .performer-title { font-weight: bold; font-size: 14px; margin-top: 20px; margin-bottom: 2px; }
-        .performer-data { font-size: 14px; line-height: 1.4; }
-        .software-title { font-size: 16px; font-weight: bold; margin-top: 40px; margin-bottom: 15px; }
-        .section-title-large { font-size: 20px; font-weight: bold; margin-top: 40px; margin-bottom: 20px; }
-
-        .section-title { margin-top: 0; margin-bottom: 20px !important; display: block; font-weight: bold; }
-        
-        .overview-grid { margin-top: 20px !important; }
-        
-        .fig { display: grid; gap: 6px; font-size: 14px; }
-        .overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .overview-grid.landscape { grid-template-columns: 1fr 1fr; align-items: center; }
-        
-        .fig img, .overview-grid img { 
-            width: 100%; 
-            height: auto; 
-            border: 1px solid #ccc; 
-            display: block; 
-            margin-top: 10px !important; 
-        }
-        
-        .note { font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px; position: absolute; bottom: 80px; left: 80px; right: 80px; }
-        .footer { position: absolute; bottom: 40px; left: 80px; right: 80px; font-size: 10px; display: flex; justify-content: space-between; }
-
-        .table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 20px !important; }
-        .table th, .table td { border: 1px solid #ccc; padding: 4px; vertical-align: middle; }
-        .feature-cell { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-        .feature-index {
-            width: 22px;
-            height: 22px;
-            border-radius: 999px;
-            background: #ffffff;
-            color: var(--marker-text, #7a0000);
-            border: 2px solid var(--marker-ring, #cc0000);
-            box-shadow: 0 0 0 1px var(--marker-outline, #7a0000);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            line-height: 1;
-            font-weight: 700;
-            font-family: Arial, sans-serif;
-            transform: translateY(2px);
-        }
-        .feature-index-value {
-            display: inline-block;
-            line-height: 1;
-            transform: translateY(-7px);
-        }
-        .feature-type { font-size: 9px; }
-        .feature-image { width: ${IMAGE_CELL_SIZE}px; height: ${IMAGE_CELL_SIZE}px; object-fit: cover; border: 1px solid #ddd; display: block; }
+        ${reportStyles}
+        .report-root { width: ${PAGE.width}px; }
+        .report-page { width: ${PAGE.width}px; height: ${PAGE.height}px; }
+        .report-page.landscape { width: ${LANDSCAPE.width}px; height: ${LANDSCAPE.height}px; }
+        .feature-image { width: ${IMAGE_CELL_SIZE}px; height: ${IMAGE_CELL_SIZE}px; }
     `;
     return style;
 };
@@ -1396,15 +1343,18 @@ export const generateReportPdfWithDialog = async (
         }
 
         stage = "collect-markings-and-tracings";
-        const markingsLeft = MarkingsStore(CANVAS_ID.LEFT).state.markings
-            .filter(m => options.selectedLabels.includes(m.label));
-        const markingsRight = MarkingsStore(CANVAS_ID.RIGHT).state.markings
-            .filter(m => options.selectedLabels.includes(m.label));
-            
+        const markingsLeft = MarkingsStore(
+            CANVAS_ID.LEFT
+        ).state.markings.filter(m => options.selectedLabels.includes(m.label));
+        const markingsRight = MarkingsStore(
+            CANVAS_ID.RIGHT
+        ).state.markings.filter(m => options.selectedLabels.includes(m.label));
+
         const markingTypes = MarkingTypesStore.state.types;
 
         const leftTracingPaths = TracingStore(CANVAS_ID.LEFT).getState().paths;
-        const rightTracingPaths = TracingStore(CANVAS_ID.RIGHT).getState().paths;
+        const rightTracingPaths = TracingStore(CANVAS_ID.RIGHT).getState()
+            .paths;
 
         const matched = options.includeMatchedOnly
             ? getMatchedFeatures(markingsLeft, markingsRight)
@@ -1434,7 +1384,7 @@ export const generateReportPdfWithDialog = async (
                 markingTypes,
                 1.6,
                 rightTracingPaths
-            )
+            ),
         ]);
 
         const detailCrops = await Promise.all(
