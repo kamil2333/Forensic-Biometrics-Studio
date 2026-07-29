@@ -21,7 +21,6 @@ import { WORKING_MODE } from "@/views/selectMode";
 import {
     formatReportDateTime,
     getMatchedFeatures,
-    getPairedByLabel,
 } from "@/lib/report/report-utils";
 import { generateReportPdfWithDialog } from "@/lib/report/generate-report-pdf";
 import { toast } from "sonner";
@@ -61,9 +60,9 @@ export function ReportDialog({ className }: ReportDialogProps) {
     const allFeatures = useMemo(() => {
         const labels = new Set([...markingsLeft.map(m => m.label), ...markingsRight.map(m => m.label)]);
         return Array.from(labels).sort((a, b) => a - b);
-    },[markingsLeft, markingsRight]);
+    }, [markingsLeft, markingsRight]);
 
-    const[selectedLabels, setSelectedLabels] = useState<number[]>([]);
+    const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -79,13 +78,13 @@ export function ReportDialog({ className }: ReportDialogProps) {
     }, [isOpen, reportDefaults, allFeatures]);
 
     const toggleFeature = (label: number) => {
-        setSelectedLabels(prev => 
+        setSelectedLabels(prev =>
             prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
         );
     };
 
-    const matchedFeaturesCount = useMemo(() => 
-        getMatchedFeatures(markingsLeft, markingsRight).length,[markingsLeft, markingsRight]);
+    const matchedFeaturesCount = useMemo(() =>
+        getMatchedFeatures(markingsLeft, markingsRight).length, [markingsLeft, markingsRight]);
 
     const generateReportLabel = t("Generate report", { ns: "keywords" });
     const workingMode = WorkingModeStore.use(state => state.workingMode);
@@ -117,13 +116,9 @@ export function ReportDialog({ className }: ReportDialogProps) {
             toast.success(t("Report generated", { ns: "tooltip" }));
             setIsOpen(false);
         } catch (error) {
-            // eslint-disable-next-line no-console
             console.error(error);
-            const message =
-                error instanceof Error ? error.message : String(error);
-            toast.error(
-                `${t("Failed to generate report", { ns: "tooltip" })}: ${message}`
-            );
+            const message = error instanceof Error ? error.message : String(error);
+            toast.error(`${t("Failed to generate report", { ns: "tooltip" })}: ${message}`);
             showErrorDialog(message, "error");
         } finally {
             setIsGenerating(false);
@@ -155,10 +150,10 @@ export function ReportDialog({ className }: ReportDialogProps) {
 
             <DialogPortal>
                 <DialogOverlay className="bg-black/40 backdrop-blur-sm z-50" />
-                <DialogContent className="z-50 w-full sm:w-[880px] max-w-[100vw] sm:max-w-[95vw] max-h-[100dvh] sm:max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-background sm:border-border sm:shadow-2xl rounded-none sm:rounded-xl">
-
-                    <div className="flex flex-col gap-1.5 p-4 sm:p-6 pb-4 border-b border-border bg-muted/10 shrink-0">
-                        <DialogTitle className="text-xl font-semibold tracking-tight text-foreground pr-8">
+                <DialogContent className="w-full md:w-[880px] max-w-[95vw] max-h-[95vh] md:max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl z-50">
+                    
+                    <div className="flex flex-col gap-1.5 p-4 sm:p-6 md:px-8 pb-4 border-b border-border bg-muted/10 shrink-0 relative z-10">
+                        <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
                             {t("Report generation", { ns: "keywords" })}
                         </DialogTitle>
                         <DialogDescription className="text-sm text-muted-foreground">
@@ -166,15 +161,16 @@ export function ReportDialog({ className }: ReportDialogProps) {
                         </DialogDescription>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto md:overflow-hidden p-4 sm:p-6 grid grid-cols-1 md:grid-cols-[1.1fr_0.9fr] gap-6 md:gap-8 bg-background">
-                        <div className="flex flex-col space-y-5 pb-2">
+                    <div className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden p-4 sm:p-6 md:p-8 flex flex-col md:grid md:grid-cols-[1.1fr_0.9fr] gap-6 md:gap-8 bg-background custom-scrollbar">
+                        
+                        <div className="flex flex-col space-y-4 md:space-y-5 pb-2 md:min-h-0 md:overflow-y-auto custom-scrollbar md:pr-3 md:-mr-3 -ml-[2px]">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="flex flex-col justify-end space-y-1.5">
                                     <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                                         {t("Language", { ns: "keywords" })}
                                     </label>
                                     <select
-                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm hover:border-primary/50 focus:ring-2 focus:ring-primary focus:outline-none transition-all cursor-pointer"
+                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-2 py-2 text-sm shadow-sm hover:border-primary/50 focus:ring-2 focus:ring-primary focus:outline-none transition-all cursor-pointer"
                                         value={reportLanguage}
                                         onChange={e => setReportLanguage(e.target.value)}
                                     >
@@ -187,10 +183,10 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                     <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                                         {t("Report date and time", { ns: "keywords" })}
                                     </label>
-                                    <Input
-                                        value={reportDateTime}
-                                        readOnly
-                                        className="flex h-10 w-full rounded-md border border-input/60 bg-muted/40 cursor-not-allowed text-sm shadow-sm text-muted-foreground"
+                                    <Input 
+                                        value={reportDateTime} 
+                                        readOnly 
+                                        className="flex h-10 w-full rounded-md border border-input/60 bg-muted/40 cursor-not-allowed text-sm shadow-sm text-muted-foreground px-2" 
                                     />
                                 </div>
                             </div>
@@ -202,7 +198,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                 <Input 
                                     value={performedBy} 
                                     onChange={e => setPerformedBy(e.target.value)} 
-                                    className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors" 
+                                    className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors px-2" 
                                 />
                             </div>
 
@@ -213,7 +209,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                 <Input 
                                     value={department} 
                                     onChange={e => setDepartment(e.target.value)} 
-                                    className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors" 
+                                    className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors px-2" 
                                 />
                             </div>
 
@@ -225,7 +221,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                     <Input 
                                         value={addressLine1} 
                                         onChange={e => setAddressLine1(e.target.value)} 
-                                        className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors" 
+                                        className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors px-2" 
                                     />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
@@ -235,7 +231,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                     <Input 
                                         value={addressLine2} 
                                         onChange={e => setAddressLine2(e.target.value)} 
-                                        className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors" 
+                                        className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors px-2" 
                                     />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
@@ -245,7 +241,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                     <Input 
                                         value={addressLine3} 
                                         onChange={e => setAddressLine3(e.target.value)} 
-                                        className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors" 
+                                        className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors px-2" 
                                     />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
@@ -255,13 +251,13 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                     <Input 
                                         value={addressLine4} 
                                         onChange={e => setAddressLine4(e.target.value)} 
-                                        className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors" 
+                                        className="flex h-10 w-full rounded-md border border-input bg-background shadow-sm hover:border-primary/50 transition-colors px-2" 
                                     />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex flex-col space-y-4 md:min-h-0 md:h-full">
+                        <div className="flex flex-col space-y-4 md:min-h-0">
                             <div className="bg-card p-4 rounded-lg border border-border flex justify-between items-center shadow-sm shrink-0">
                                 <div className="flex flex-col">
                                     <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -271,7 +267,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                         {matchedFeaturesCount}
                                     </span>
                                 </div>
-                                <div className="w-px h-10 bg-border hidden xs:block"></div>
+                                <div className="w-px h-10 bg-border"></div>
                                 <div className="flex flex-col items-end">
                                     <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                                         {t("Selected features", { ns: "keywords" })}
@@ -327,7 +323,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                                                         {t("Feature", { ns: "keywords" })} #{label}
                                                     </span>
                                                 </div>
-                                                <div className="flex justify-between pl-6.5 text-xs font-medium">
+                                                <div className="flex justify-between pl-6 text-xs font-medium">
                                                     <span className={cn("px-1.5 py-0.5 rounded-sm border", left ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted/50 border-border/50 text-muted-foreground")}>
                                                         L: {left ? "OK" : "—"}
                                                     </span>
@@ -343,7 +339,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                         </div>
                     </div>
 
-                    <div className="p-4 sm:px-6 border-t border-border bg-muted/10 flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0">
+                    <div className="p-4 sm:p-6 md:px-8 border-t border-border bg-background bg-muted/10 flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0 relative z-10">
                         <DialogClose asChild>
                             <Button type="button" variant="outline" className="w-full sm:w-28 shadow-sm">
                                 {t("Cancel", { ns: "keywords" })}
@@ -361,7 +357,7 @@ export function ReportDialog({ className }: ReportDialogProps) {
                         </Button>
                     </div>
 
-                    <DialogClose className="absolute top-4 right-4 sm:top-6 sm:right-6 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none text-muted-foreground hover:bg-muted p-1">
+                    <DialogClose className="absolute top-4 right-4 sm:top-6 sm:right-6 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none text-muted-foreground hover:bg-muted p-1 z-50">
                         <X size={20} strokeWidth={ICON.STROKE_WIDTH} />
                     </DialogClose>
                 </DialogContent>
