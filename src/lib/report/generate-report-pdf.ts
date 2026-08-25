@@ -1302,9 +1302,12 @@ export const generateReportPdfWithDialog = async (
     try {
         stage = "check-working-mode";
         const { workingMode } = WorkingModeStore.state;
-        if (workingMode !== WORKING_MODE.FINGERPRINT) {
+        if (
+            workingMode !== WORKING_MODE.FINGERPRINT &&
+            workingMode !== WORKING_MODE.SIGNATURE
+        ) {
             throw new Error(
-                "Report generation is available only for fingerprints."
+                "Report generation is available only for fingerprints and signatures."
             );
         }
 

@@ -23,6 +23,9 @@ import {
     getMatchedFeatures,
 } from "@/lib/report/report-utils";
 import { generateReportPdfWithDialog } from "@/lib/report/generate-report-pdf";
+import { generateSignatureReportPdfWithDialog } from "@/lib/report/generate-signature-report-pdf";
+import { MarkingTypesStore } from "@/lib/stores/MarkingTypes/MarkingTypes";
+import { computeSignatureParams } from "@/lib/signature/signature-params";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils/shadcn";
 import { showErrorDialog } from "@/lib/errors/showErrorDialog";
@@ -93,12 +96,38 @@ export function ReportDialog({ className }: ReportDialogProps) {
 
     const checkboxId = useId();
 
+    const workingMode = WorkingModeStore.use(state => state.workingMode);
+    const isFingerprintMode = workingMode === WORKING_MODE.FINGERPRINT;
+    const isSignatureMode = workingMode === WORKING_MODE.SIGNATURE;
+
     const markingsLeft = MarkingsStore(CANVAS_ID.LEFT).use(
         state => state.markings
     );
     const markingsRight = MarkingsStore(CANVAS_ID.RIGHT).use(
         state => state.markings
     );
+
+    const leftCount = MarkingsStore(CANVAS_ID.LEFT).use(
+        state => state.markings.length
+    );
+    const rightCount = MarkingsStore(CANVAS_ID.RIGHT).use(
+        state => state.markings.length
+    );
+    const leftHash = MarkingsStore(CANVAS_ID.LEFT).use(
+        state => state.markingsHash
+    );
+    const rightHash = MarkingsStore(CANVAS_ID.RIGHT).use(
+        state => state.markingsHash
+    );
+
+    const markingTypes = MarkingTypesStore.use(state => state.types);
+    const signatureReady = useMemo(() => {
+        if (!isSignatureMode) return false;
+        const left = computeSignatureParams(markingsLeft, markingTypes);
+        const right = computeSignatureParams(markingsRight, markingTypes);
+        return left.hasOutline && right.hasOutline;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isSignatureMode, markingTypes, leftHash, rightHash]);
 
     const allFeatures = useMemo(() => {
         const labels = new Set([
@@ -137,11 +166,10 @@ export function ReportDialog({ className }: ReportDialogProps) {
     );
 
     const generateReportLabel = t("Generate report", { ns: "keywords" });
-    const workingMode = WorkingModeStore.use(state => state.workingMode);
-    const canGenerate =
-        workingMode === WORKING_MODE.FINGERPRINT &&
-        markingsLeft.length > 0 &&
-        markingsRight.length > 0;
+
+    const canGenerate = isFingerprintMode
+        ? leftCount > 0 && rightCount > 0
+        : isSignatureMode && signatureReady;
 
     const onGenerate = async () => {
         if (!canGenerate) return;
@@ -149,8 +177,9 @@ export function ReportDialog({ className }: ReportDialogProps) {
             setIsGenerating(true);
             const now = new Date();
             const timestamp = formatReportDateTime(now);
-            await generateReportPdfWithDialog({
-                includeMatchedOnly,
+            setReportDateTime(timestamp);
+
+            const sharedOptions = {
                 reportDateTime: timestamp,
                 reportLanguage,
                 performedBy: performedBy.trim(),
@@ -161,8 +190,18 @@ export function ReportDialog({ className }: ReportDialogProps) {
                     addressLine3.trim(),
                     addressLine4.trim(),
                 ],
-                selectedLabels,
-            });
+            };
+
+            if (isSignatureMode) {
+                await generateSignatureReportPdfWithDialog(sharedOptions);
+            } else {
+                await generateReportPdfWithDialog({
+                    includeMatchedOnly,
+                    selectedLabels,
+                    ...sharedOptions,
+                });
+            }
+
             toast.success(t("Report generated", { ns: "tooltip" }));
             setIsOpen(false);
         } catch (error) {
@@ -203,7 +242,12 @@ export function ReportDialog({ className }: ReportDialogProps) {
 
             <DialogPortal>
                 <DialogOverlay className="bg-black/40 backdrop-blur-sm z-50" />
-                <DialogContent className="w-full md:w-[880px] max-w-[95vw] max-h-[95vh] md:max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl z-50">
+                <DialogContent
+                    className={cn(
+                        "w-full max-w-[95vw] max-h-[95vh] md:max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl z-50",
+                        isFingerprintMode ? "md:w-[880px]" : "md:w-[500px]" // Wężej w trybie podpisu
+                    )}
+                >
                     <div className="flex flex-col gap-1.5 p-4 sm:p-6 md:px-8 pb-4 border-b border-border bg-muted/10 shrink-0 relative z-10">
                         <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
                             {t("Report generation", { ns: "keywords" })}
@@ -213,7 +257,13 @@ export function ReportDialog({ className }: ReportDialogProps) {
                         </DialogDescription>
                     </div>
 
-                    <div className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden p-4 sm:p-6 md:p-8 flex flex-col md:grid md:grid-cols-[1.1fr_0.9fr] gap-6 md:gap-8 bg-background custom-scrollbar">
+                    <div
+                        className={cn(
+                            "flex-1 min-h-0 overflow-y-auto md:overflow-hidden p-4 sm:p-6 md:p-8 flex flex-col gap-6 md:gap-8 bg-background custom-scrollbar",
+                            isFingerprintMode &&
+                                "md:grid md:grid-cols-[1.1fr_0.9fr]"
+                        )}
+                    >
                         <div className="flex flex-col space-y-4 md:space-y-5 pb-2 md:min-h-0 md:overflow-y-auto custom-scrollbar md:pr-3 md:-mr-3 -ml-[2px]">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="flex flex-col justify-end space-y-1.5">
@@ -289,141 +339,152 @@ export function ReportDialog({ className }: ReportDialogProps) {
                             </div>
                         </div>
 
-                        <div className="flex flex-col space-y-4 md:min-h-0">
-                            <div className="bg-card p-4 rounded-lg border border-border flex justify-between items-center shadow-sm shrink-0">
-                                <div className="flex flex-col">
-                                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                                        {t("Matched features", {
-                                            ns: "keywords",
-                                        })}
-                                    </span>
-                                    <span className="text-2xl font-bold text-foreground">
-                                        {matchedFeaturesCount}
-                                    </span>
-                                </div>
-                                <div className="w-px h-10 bg-border" />
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                                        {t("Selected features", {
-                                            ns: "keywords",
-                                        })}
-                                    </span>
-                                    <span className="text-2xl font-bold text-primary">
-                                        {selectedLabels.length}{" "}
-                                        <span className="text-muted-foreground text-lg">
-                                            / {allFeatures.length}
+                        {/* Prawa kolumna (Cechy) generuje się tylko w trybie odcisków! */}
+                        {isFingerprintMode && (
+                            <div className="flex flex-col space-y-4 md:min-h-0">
+                                <div className="bg-card p-4 rounded-lg border border-border flex justify-between items-center shadow-sm shrink-0">
+                                    <div className="flex flex-col">
+                                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                            {t("Matched features", {
+                                                ns: "keywords",
+                                            })}
                                         </span>
-                                    </span>
+                                        <span className="text-2xl font-bold text-foreground">
+                                            {matchedFeaturesCount}
+                                        </span>
+                                    </div>
+                                    <div className="w-px h-10 bg-border" />
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                            {t("Selected features", {
+                                                ns: "keywords",
+                                            })}
+                                        </span>
+                                        <span className="text-2xl font-bold text-primary">
+                                            {selectedLabels.length}{" "}
+                                            <span className="text-muted-foreground text-lg">
+                                                / {allFeatures.length}
+                                            </span>
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <label
-                                htmlFor={checkboxId}
-                                className="flex items-center gap-2.5 cursor-pointer text-sm font-medium w-max hover:text-primary transition-colors shrink-0"
-                            >
-                                <div className="relative flex items-center justify-center">
-                                    <input
-                                        id={checkboxId}
-                                        type="checkbox"
-                                        className="peer appearance-none w-4 h-4 border border-input rounded-sm bg-background checked:bg-primary checked:border-primary transition-all cursor-pointer shadow-sm"
-                                        checked={includeMatchedOnly}
-                                        onChange={e =>
-                                            setIncludeMatchedOnly(
-                                                e.target.checked
-                                            )
-                                        }
-                                    />
-                                    <Check
-                                        className="absolute w-3 h-3 text-primary-foreground opacity-0 peer-checked:opacity-100 pointer-events-none"
-                                        strokeWidth={3}
-                                    />
-                                </div>
-                                {t("Include matched only", { ns: "keywords" })}
-                            </label>
-
-                            <div className="md:flex-1 md:min-h-0 rounded-lg border border-border bg-muted/5 p-2 md:overflow-y-auto custom-scrollbar shadow-inner">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {allFeatures.map(label => {
-                                        const left = markingsLeft.find(
-                                            m => m.label === label
-                                        );
-                                        const right = markingsRight.find(
-                                            m => m.label === label
-                                        );
-                                        const isSelected =
-                                            selectedLabels.includes(label);
-
-                                        return (
-                                            <div
-                                                key={label}
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={() =>
-                                                    toggleFeature(label)
-                                                }
-                                                onKeyDown={e => {
-                                                    if (
-                                                        e.key === "Enter" ||
-                                                        e.key === " "
-                                                    ) {
-                                                        e.preventDefault();
-                                                        toggleFeature(label);
-                                                    }
-                                                }}
-                                                className={cn(
-                                                    "flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-all duration-200 select-none bg-background",
-                                                    isSelected
-                                                        ? "border-primary ring-1 ring-primary/20 shadow-sm"
-                                                        : "border-border hover:border-primary/50 hover:bg-muted/30 opacity-80"
-                                                )}
-                                            >
-                                                <div className="flex items-center gap-2.5">
-                                                    <div
-                                                        className={cn(
-                                                            "w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors shadow-sm",
-                                                            isSelected
-                                                                ? "bg-primary border-primary text-primary-foreground"
-                                                                : "bg-card border-input"
-                                                        )}
-                                                    >
-                                                        {isSelected && (
-                                                            <Check
-                                                                size={12}
-                                                                strokeWidth={3}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                    {/* prettier-ignore */}
-                                                    <span className={cn("text-sm font-semibold truncate", isSelected ? "text-foreground" : "text-muted-foreground")}>{t("Feature", { ns: "keywords" })} #{label}</span>
-                                                </div>
-                                                <div className="flex justify-between pl-6 text-xs font-medium">
-                                                    <span
-                                                        className={cn(
-                                                            "px-1.5 py-0.5 rounded-sm border",
-                                                            left
-                                                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                                                                : "bg-muted/50 border-border/50 text-muted-foreground"
-                                                        )}
-                                                    >
-                                                        L: {left ? "OK" : "—"}
-                                                    </span>
-                                                    <span
-                                                        className={cn(
-                                                            "px-1.5 py-0.5 rounded-sm border",
-                                                            right
-                                                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                                                                : "bg-muted/50 border-border/50 text-muted-foreground"
-                                                        )}
-                                                    >
-                                                        R: {right ? "OK" : "—"}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
+                                <label
+                                    htmlFor={checkboxId}
+                                    className="flex items-center gap-2.5 cursor-pointer text-sm font-medium w-max hover:text-primary transition-colors shrink-0"
+                                >
+                                    <div className="relative flex items-center justify-center">
+                                        <input
+                                            id={checkboxId}
+                                            type="checkbox"
+                                            className="peer appearance-none w-4 h-4 border border-input rounded-sm bg-background checked:bg-primary checked:border-primary transition-all cursor-pointer shadow-sm"
+                                            checked={includeMatchedOnly}
+                                            onChange={e =>
+                                                setIncludeMatchedOnly(
+                                                    e.target.checked
+                                                )
+                                            }
+                                        />
+                                        <Check
+                                            className="absolute w-3 h-3 text-primary-foreground opacity-0 peer-checked:opacity-100 pointer-events-none"
+                                            strokeWidth={3}
+                                        />
+                                    </div>
+                                    {t("Include matched only", {
+                                        ns: "keywords",
                                     })}
+                                </label>
+
+                                <div className="md:flex-1 md:min-h-0 rounded-lg border border-border bg-muted/5 p-2 md:overflow-y-auto custom-scrollbar shadow-inner">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {allFeatures.map(label => {
+                                            const left = markingsLeft.find(
+                                                m => m.label === label
+                                            );
+                                            const right = markingsRight.find(
+                                                m => m.label === label
+                                            );
+                                            const isSelected =
+                                                selectedLabels.includes(label);
+
+                                            return (
+                                                <div
+                                                    key={label}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() =>
+                                                        toggleFeature(label)
+                                                    }
+                                                    onKeyDown={e => {
+                                                        if (
+                                                            e.key === "Enter" ||
+                                                            e.key === " "
+                                                        ) {
+                                                            e.preventDefault();
+                                                            toggleFeature(
+                                                                label
+                                                            );
+                                                        }
+                                                    }}
+                                                    className={cn(
+                                                        "flex flex-col gap-2 p-3 rounded-md border cursor-pointer transition-all duration-200 select-none bg-background",
+                                                        isSelected
+                                                            ? "border-primary ring-1 ring-primary/20 shadow-sm"
+                                                            : "border-border hover:border-primary/50 hover:bg-muted/30 opacity-80"
+                                                    )}
+                                                >
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div
+                                                            className={cn(
+                                                                "w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors shadow-sm",
+                                                                isSelected
+                                                                    ? "bg-primary border-primary text-primary-foreground"
+                                                                    : "bg-card border-input"
+                                                            )}
+                                                        >
+                                                            {isSelected && (
+                                                                <Check
+                                                                    size={12}
+                                                                    strokeWidth={
+                                                                        3
+                                                                    }
+                                                                />
+                                                            )}
+                                                        </div>
+                                                        {/* prettier-ignore */}
+                                                        <span className={cn("text-sm font-semibold truncate", isSelected ? "text-foreground" : "text-muted-foreground")}>{t("Feature", { ns: "keywords" })} #{label}</span>
+                                                    </div>
+                                                    <div className="flex justify-between pl-6 text-xs font-medium">
+                                                        <span
+                                                            className={cn(
+                                                                "px-1.5 py-0.5 rounded-sm border",
+                                                                left
+                                                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                                                    : "bg-muted/50 border-border/50 text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            L:{" "}
+                                                            {left ? "OK" : "—"}
+                                                        </span>
+                                                        <span
+                                                            className={cn(
+                                                                "px-1.5 py-0.5 rounded-sm border",
+                                                                right
+                                                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                                                    : "bg-muted/50 border-border/50 text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            R:{" "}
+                                                            {right ? "OK" : "—"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     <div className="p-4 sm:p-6 md:px-8 border-t border-border bg-background bg-muted/10 flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0 relative z-10">
@@ -443,7 +504,8 @@ export function ReportDialog({ className }: ReportDialogProps) {
                             disabled={
                                 !canGenerate ||
                                 isGenerating ||
-                                selectedLabels.length === 0
+                                (isFingerprintMode &&
+                                    selectedLabels.length === 0)
                             }
                         >
                             {isGenerating
